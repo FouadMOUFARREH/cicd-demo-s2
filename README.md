@@ -1,5 +1,4 @@
-# CI/CD Demo — Séance 2
-
+# CI/CD Demo 
 Mini API Node.js/Express utilisée pour construire progressivement un pipeline CI avec GitHub Actions.
 
 ## Pré-requis
