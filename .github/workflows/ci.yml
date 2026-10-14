@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Installer les dépendances
+        run: npm install
+
+      - name: Vérifier le code
+        run: npm run lint
+
+      - name: Exécuter les tests
+        run: npm test
+
+      - name: Construire l'image Docker
+        run: docker build -t cicd-demo-s2 .
+
+      - name: Démarrer le conteneur
+        run: docker run -d --name cicd-demo -p 3000:3000 cicd-demo-s2
+
+      - name: Attendre l'application
+        run: |
+          for i in {1..10}; do
+            if curl --fail http://localhost:3000/api/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs cicd-demo
+          exit 1
+
+      - name: Vérifier le calcul TTC
+        run: |
+          curl --fail "http://localhost:3000/api/calcul/ttc?prix=100&tva=20" \
+            | grep '"prixTTC":120'
+
+      - name: Nettoyer le conteneur
+        if: always()
+        run: docker rm -f cicd-demo || true
