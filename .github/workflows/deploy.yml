@@ -38,13 +38,14 @@ jobs:
 
       - name: Vérifier
         run: |
+          URL=http://localhost:3000
           for i in {1..15}; do
-            curl --fail --silent http://localhost:3000/api/health > /dev/null && break
+            curl --fail --silent "$URL/api/health" > /dev/null && break
             sleep 2
           done
           echo "image déployée : $IMAGE_NAME:$TAG"
-          curl --fail --silent http://localhost:3000/
-          curl --fail --silent "http://localhost:3000/api/calcul/ttc?prix=100&tva=20"
+          curl --fail --silent "$URL/"; echo
+          curl --fail --silent "$URL/api/calcul/ttc?prix=100&tva=20"; echo
 
       - name: Nettoyer
         if: always()
