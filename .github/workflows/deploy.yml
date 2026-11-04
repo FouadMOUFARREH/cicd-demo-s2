@@ -1,0 +1,52 @@
+name: Deploy
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: tag de l'image
+        required: true
+      environment:
+        description: cible
+        type: choice
+        options: [staging, production]
+        default: staging
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - name: Reconstruire la référence
+        env:
+          TAG: ${{ inputs.tag }}
+        run: |
+          REPO="$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          echo "IMAGE_NAME=ghcr.io/$REPO" >> "$GITHUB_ENV"
+          echo "TAG=$TAG" >> "$GITHUB_ENV"
+
+      - name: Télécharger le tag demandé
+        run: docker pull "$IMAGE_NAME:$TAG"
+
+      - name: Démarrer
+        run: |
+          docker run -d --name cicd-deploy -p 3000:3000 "$IMAGE_NAME:$TAG"
+
+      - name: Vérifier
+        run: |
+          for i in {1..15}; do
+            curl --fail --silent http://localhost:3000/api/health && exit 0
+            sleep 2
+          done
+          docker logs cicd-deploy
+          exit 1
+
+      - name: Nettoyer
+        if: always()
+        run: |
+          docker logs cicd-deploy || true
+          docker rm -f cicd-deploy || true
