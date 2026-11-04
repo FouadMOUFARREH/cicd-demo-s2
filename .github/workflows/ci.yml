@@ -57,10 +57,10 @@ jobs:
         run: docker rm -f cicd-demo || true
 
       - name: Preparer le nom de l'image
-        run: 
+        run: |
           IMAGE_NAME="ghcr.io/$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
           echo "IMAGE_NAME=$IMAGE_NAME" >> "$GITHUB_ENV"
-         
+
       - name: Connexion à GHCR
         uses: docker/login-action@v3
         with:
@@ -79,12 +79,65 @@ jobs:
           docker push "$IMAGE_NAME:${GITHUB_SHA}"
           docker push "$IMAGE_NAME:latest"
 
+  # S4 — déploiement automatique après build
+  deploy_staging:
+    needs: build
+    runs-on: ubuntu-latest
+    environment: staging
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - name: Reconstruire la référence
+        run: |
+          REPO="$(echo "${GITHUB_REPOSITORY}" | tr '[:upper:]' '[:lower:]')"
+          echo "IMAGE_NAME=ghcr.io/$REPO" >> "$GITHUB_ENV"
 
+      - name: Contrôler la référence
+        run: |
+          test -n "$IMAGE_NAME"
+          echo "IMAGE_NAME=$IMAGE_NAME"
 
+      - name: Connexion à GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Télécharger l'image
+        run: |
+          docker pull "$IMAGE_NAME:${GITHUB_SHA}"
+          docker image ls "$IMAGE_NAME"
 
+      - name: Démarrer staging
+        run: |
+          docker run -d --name cicd-staging \
+            -p 3000:3000 "$IMAGE_NAME:${GITHUB_SHA}"
+          docker ps --filter name=cicd-staging
 
+      - name: Attendre l'API
+        shell: bash
+        run: |
+          for i in {1..15}; do
+            if curl --fail --silent \
+              http://localhost:3000/api/health; then
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs cicd-staging
+          exit 1
 
+      - name: Vérifier le calcul TTC
+        run: |
+          BASE=http://localhost:3000
+          curl --fail --silent \
+            "$BASE/api/calcul/ttc?prix=100&tva=20" \
+            | grep '"prixTTC":120'
 
-
-        
+      - name: Nettoyer staging
+        if: always()
+        run: |
+          docker logs cicd-staging || true
+          docker rm -f cicd-staging || true
