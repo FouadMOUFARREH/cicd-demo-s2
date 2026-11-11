@@ -12,7 +12,10 @@ on:
         type: choice
         options: [staging, production]
         default: staging
-
+      test_local:
+        description: Tester une image locale sur EC2
+        type: boolean
+        default: false
 concurrency:
   group: deploy-ec2
   cancel-in-progress: false
@@ -59,14 +62,26 @@ jobs:
             'whoami && docker ps'
 
       - name: Déployer sur EC2
+        env:
+          TEST_LOCAL: ${{ inputs.test_local }}
         run: |
+          SCRIPT=deploy.sh
+
+          if [ "$TEST_LOCAL" = "true" ]; then
+            if [ "$TAG" != "s5-test-ko" ]; then
+              echo "Le test local exige le tag s5-test-ko"
+              exit 1
+            fi
+            SCRIPT=deploy-test-local.sh
+          fi
+
           ssh -i ~/.ssh/id_ed25519 \
             -o BatchMode=yes \
             -o IdentitiesOnly=yes \
             -o StrictHostKeyChecking=yes \
             -o ConnectTimeout=10 \
             "$SSH_USER@$SSH_HOST" \
-            "cd /opt/atlas && ./deploy.sh '$TAG'"
+            "cd /opt/atlas && ./$SCRIPT '$TAG'"
 
       - name: Vérifier la version en service
         run: |
