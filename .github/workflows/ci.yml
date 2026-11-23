@@ -18,3 +18,22 @@ jobs:
       - run: npm ci
       - run: npm run lint
       - run: npm test
+      - run: docker build -t cicd-demo-s2:ci .
+      - run: docker run -d --name cicd-demo-s2-ci -p 127.0.0.1:3000:3000 cicd-demo-s2:ci
+      - name: Vérifier la santé
+        run: |
+          for i in {1..15}; do
+            if curl -fsS --max-time 2 http://127.0.0.1:3000/api/health | grep -Fq '"status":"OK"'; then
+              exit 0
+            fi
+            sleep 1
+          done
+          docker logs cicd-demo-s2-ci
+          exit 1
+      - name: Vérifier le calcul TTC
+        run: |
+          set -o pipefail
+          curl -fsS 'http://127.0.0.1:3000/api/calcul/ttc?prix=100&tva=20' | grep -F '"prixTTC":120'
+      - name: Nettoyer
+        if: always()
+        run: docker rm -f cicd-demo-s2-ci || true
