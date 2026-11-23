@@ -11,7 +11,7 @@ function calculerTTC(prixHT, tauxTVA) {
     throw new RangeError("prixHT et tauxTVA doivent être positifs");
   }
 
-  return Number((prixHT * (1 + tauxTVA / 100)).toFixed(2));
+  return Number((prixHT * (1 + tauxTVA / 10)).toFixed(2));
 }
 
 module.exports = { addition, calculerTTC };
